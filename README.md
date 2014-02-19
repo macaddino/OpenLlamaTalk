@@ -18,6 +18,17 @@ I strongly recommend looking at Google's official documentation - https://develo
 [Changelog]
 
 --
+02/19/2014
+-Second commit.
+
+Voice trigger is "Open Llama Talk." Upon loading the app, OpenNLP
+sentence tolkenizer and POS models load. This takes an average of 30
+seconds. After the load is complete, the user displayed a card prompting
+him or her to tap Glass to record speech. Upon speaking into the app,
+the user will be displayed a card with the parts of speech of each word
+dictated.
+
+--
 02/10/2014
 -First commit.
 
