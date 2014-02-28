@@ -15,6 +15,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 
+import edu.stanford.nlp.trees.GrammaticalRelation.GrammaticalRelationAnnotation;
 import edu.stanford.nlp.trees.TreeGraphNode;
 import edu.stanford.nlp.trees.TypedDependency;
 
@@ -55,6 +56,7 @@ public class SentenceDiagram {
   }
 
 
+  // Draws the diagram.
   public void initDiagram() {
     String subject = "";
     SDWord subjectWord = null;
@@ -133,19 +135,22 @@ public class SentenceDiagram {
 
     // Draw subject, predicate, and (if existing) dobj/pred adj/pred n words.
     mPaint.setTextSize(textSize);
+    subjectWord.calculateDimensions();
     textDistFromHorizLine = canvasHeight / 2 - subjectWord.dimensions.height();
 
 
     canvas.drawText(subjectWord.word,
-                    firstVertLineX - subjectWord.dimensions.width() - 100,
+                    firstVertLineX - subjectWord.dimensions.width() - 50,
                     textDistFromHorizLine,
                     mPaint);
+    System.out.println("THIS IS FIRST VERTICAL X POS: " + firstVertLineX + ", WIDTH OF SUBJECT " + subjectWord.dimensions.width());
     subjectWord.placement.set(
-        firstVertLineX - subjectWord.dimensions.width() - 100,
+        firstVertLineX - subjectWord.dimensions.width() - 50,
         textDistFromHorizLine - subjectWord.dimensions.height(),
-        firstVertLineX - 100,
+        firstVertLineX - 50,
         textDistFromHorizLine);
 
+    predWord.calculateDimensions();
     canvas.drawText(predWord.word,
                     firstVertLineX + 50,
                     textDistFromHorizLine,
@@ -157,6 +162,7 @@ public class SentenceDiagram {
         textDistFromHorizLine);
 
     if (vertDivisions == 3) {
+      predAdjOrNounOrDobjWord.calculateDimensions();
       canvas.drawText(predAdjOrNounOrDobjWord.word,
                       firstVertLineX * 2 - 30 + 50,
                       textDistFromHorizLine,
@@ -168,23 +174,116 @@ public class SentenceDiagram {
           textDistFromHorizLine);
     }
 
-    // Draw children of subj, pred, and dobj/pred adj/pred n recursively.
-    for (TreeGraphNode child : subjectWord.node.children()) {
-      childParse(child, subjectWord);
-    }
-    for (TreeGraphNode child : predWord.node.children()) {
-      childParse(child, predWord);
-    }
-    if (vertDivisions == 3) {
-      for (TreeGraphNode child : predAdjOrNounOrDobjWord.node.children()) {
-        childParse(child, predAdjOrNounOrDobjWord);
+    // Draw dependencies of subj, pred, and dobj/pred adj/pred n recursively.
+    for (TypedDependency dep : dependencies) {
+      if (dep.gov() == subjectWord.node) {
+        dependencyParse(dep.dep(), subjectWord, dep.reln().toString());
+      }
+      else if (dep.gov() == predWord.node) {
+    	if (!dep.reln().toString().equals("dobj") &&
+    	    !dep.reln().toString().equals("nsubj"))
+          dependencyParse(dep.dep(), predWord, dep.reln().toString());
+      }
+      else if (vertDivisions == 3 && dep.gov() == predAdjOrNounOrDobjWord.node) {
+    	if (!dep.reln().toString().equals("nsubj") &&
+    	    !dep.reln().toString().equals("cop"))
+          dependencyParse(dep.dep(), predAdjOrNounOrDobjWord, dep.reln().toString());
       }
     }
   }
 
 
-  public void childParse(TreeGraphNode child, SDWord parent) {
-    // Switch 
+  // Depending on dependency relationship between "dep" and "gov", place "dep"
+  // on diagram in relation to "gov".
+  public void dependencyParse(TreeGraphNode dependent, SDWord governor,
+                              String depType) {
+	System.out.println("CHILDPARSE CALLED ON " + dependent.toString());
+	System.out.println("THIS CHILD HAS A DEP WITH PARENT OF " + depType);
+    DepEnum.Dep dep = DepEnum.fromString(depType);
+    switch(dep) {
+        case ABBREV:
+        case ADVMOD:
+        case AMOD:
+        case DEP:
+        case DET:
+        case MEASURE:
+        case NEG:
+        case NN:
+        case NUM:
+        case NUMBER:
+        case POSS:
+        case PREDET:
+        case PREP:
+        case QUANTMOD:
+        case REF:
+          addDiagWord(dependent, governor);
+          break;
+        case IOBJ:
+        case PARATAXIS:
+        case POBJ:
+          // addHorizLine();
+          break;
+        case APPOS:
+        case POSSESSIVE:
+        case PRT:
+          // appendWord(true);
+          break;
+        case AUX:
+        case TMOD:
+          // appendWord(false);
+          break;
+        case ADVCL:
+        case CSUBJ:
+        case PCOMP:
+        case RCMOD:
+          // newDiagram();
+          break;
+        case COMPLM:
+        case EXPL:
+        case MARK:
+          // addSegment();
+          break;
+    }
+  }
+  
+
+  // Add word "dep" to diagram which will be diagonally placed under "gov".
+  public void addDiagWord(TreeGraphNode dependent, SDWord governor) {
+    // Determine leftmost x coords of diagonal line.
+    // It should be directly under the parent word and to the right of 
+    // all other diagonally placed children of parent.
+    float diagLineX = governor.placement.left;
+    if (!governor.dependents.isEmpty()) {
+      for (SDWord chld : governor.dependents) {
+        if (chld.isDiagonal && chld.diagLineX >= diagLineX)
+          diagLineX = chld.diagLineX + 50;
+      }
+    }
+
+    canvas.drawLine(diagLineX, (float) canvasHeight / 2,
+                    diagLineX + 30, (float) canvasHeight / 2 + 70, mPaint);
+    
+    canvas.save();
+    canvas.rotate(65, diagLineX + 20, (float) canvasHeight / 2 + 20);
+    mPaint.setTextSize(25);
+    canvas.drawText(dependent.toString(), diagLineX + 20,
+                    (float) canvasHeight / 2 + 20, mPaint);
+    canvas.restore();
+    mPaint.setTextSize(textSize);
+    // Add dependent word to governing word's list of dependents.
+    SDWord word = new SDWord(dependent.toString(), dependent, true, mPaint);
+    word.setDiagLineX(diagLineX);
+    governor.dependents.add(word);
+    
+  }
+
+  // Add word "dep" to diagram which will be horizontally placed under "gov".
+  public void addHorizWord(TreeGraphNode dependent, SDWord governor) {
+    // If gov is diagonally placed word, draw horiz line under diag line.
+    // If gov is horizontally placed word, draw empty diag line and horiz line
+    // under it.
+    // Draw word on horizontal line.
+    // Save word as part of governor's dependents.
   }
 }
   
