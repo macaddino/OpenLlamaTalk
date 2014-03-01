@@ -244,6 +244,8 @@ public class SentenceDiagram {
           // addSegment();
           break;
     }
+    // Call dependencyParse once more if there the dep is a gov of anything.
+    // We might need to pass in the dependencytree to do this.
   }
   
 

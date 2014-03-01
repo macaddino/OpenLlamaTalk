@@ -5,50 +5,89 @@
  */
 package com.openllamatalk.helloglass;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.StringReader;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.zip.GZIPInputStream;
+
+/*
 import opennlp.tools.postag.POSModel;
 import opennlp.tools.postag.POSTagger;
 import opennlp.tools.postag.POSTaggerME;
-import opennlp.tools.sentdetect.SentenceDetector;
-import opennlp.tools.sentdetect.SentenceDetectorME;
-import opennlp.tools.sentdetect.SentenceModel;
 import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.TokenizerME;
 import opennlp.tools.tokenize.TokenizerModel;
+*/
+
+import org.languagetool.JLanguageTool;
+import org.languagetool.Language;
+import org.languagetool.language.AmericanEnglish;
+import org.languagetool.rules.RuleMatch;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.net.Uri;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.Environment;
+import android.speech.RecognizerIntent;
+import android.view.MotionEvent;
+import android.view.View;
 
 import com.google.android.glass.app.Card;
 import com.google.android.glass.touchpad.Gesture;
 import com.google.android.glass.touchpad.GestureDetector;
 
-import android.content.res.AssetManager;
-import android.os.AsyncTask;
-import android.os.Bundle;
-import android.app.Activity;
-import android.view.Menu;
-import android.view.MotionEvent;
-import android.view.View;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
-import android.speech.RecognizerIntent;
-import android.widget.ArrayAdapter;
-
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.List;
+import edu.stanford.nlp.ling.CoreLabel;
+import edu.stanford.nlp.ling.TaggedWord;
+import edu.stanford.nlp.parser.lexparser.LexicalizedParser;
+import edu.stanford.nlp.process.CoreLabelTokenFactory;
+import edu.stanford.nlp.process.PTBTokenizer;
+import edu.stanford.nlp.process.Tokenizer;
+import edu.stanford.nlp.process.TokenizerFactory;
+import edu.stanford.nlp.trees.GrammaticalStructure;
+import edu.stanford.nlp.trees.GrammaticalStructureFactory;
+import edu.stanford.nlp.trees.PennTreebankLanguagePack;
+import edu.stanford.nlp.trees.Tree;
+import edu.stanford.nlp.trees.TreebankLanguagePack;
+import edu.stanford.nlp.trees.TypedDependency;
 
 public class Magic extends Activity {
 	
   private static final int REQUEST_CODE = 1234;
   private Card card1;
+  private List<ErroneousSentence> sentences;
   private GestureDetector mGestureDetector;
+  /*
   private InputStream modelIn = null;
   private InputStream tokenModelIn = null;
+  */
+  private InputStream stanModelIn = null;
+  private GZIPInputStream zipStanModelIn = null;
+  private LexicalizedParser _lp = null;
+  /*
   private Tokenizer _tokenizer = null;
   private POSTagger _posTagger = null;
+  */
+  private JLanguageTool _langTool = null;
   
   private class LoadModels extends AsyncTask<Context, Integer, Context> {
 	// Load OpenNLP's sentence tokenizer and POS tagger models.
@@ -61,33 +100,66 @@ public class Magic extends Activity {
           setContentView(card1View);
         }
       });
-      
-	  AssetManager assetManager = getAssets();
-	  
-	  try {
-	    // Loading tokenizer model.
-	    tokenModelIn = assetManager.open("en-token.bin");
-	    final TokenizerModel tokenModel = new TokenizerModel(tokenModelIn);
-	    tokenModelIn.close();
-	    	
-	    _tokenizer = new TokenizerME(tokenModel);
-	  } catch (final IOException ioe) {
-	    ioe.printStackTrace();
-	  } finally {
-	    if (tokenModelIn != null) {
-	      try {
-	        tokenModelIn.close();
-	      } catch (final IOException e) {} // oh well!
-	    }
-	  }
-	  
+
       try {
-          // Loading POS tagger model.
-      	modelIn = assetManager.open("en-pos-maxent.bin");
-      	final POSModel posModel = new POSModel(modelIn);
-      	modelIn.close();
+          // Loading LanguageTool grammatical correction tool.
+      	Language lang = new AmericanEnglish();
+
+      	_langTool = new JLanguageTool(context[0], lang);
       	
-      	_posTagger = new POSTaggerME(posModel);
+        _langTool.activateDefaultPatternRules();
+      } catch (final IOException ioe) {
+        ioe.printStackTrace();
+      }
+      
+	    AssetManager assetManager = context[0].getAssets();
+
+	    try {
+	      // Loading Stanford Dependency parsing model.
+	      stanModelIn = assetManager.open("englishPCFG");
+	    
+	      try {
+	        zipStanModelIn = new GZIPInputStream(stanModelIn);
+	      
+	        try {
+	          ObjectInputStream ios = new ObjectInputStream(zipStanModelIn);
+	          _lp = LexicalizedParser.loadModel(ios);
+
+	        } catch (IOException e) {
+	          e.printStackTrace();
+	        }
+	      } catch (IOException e) {
+	        e.printStackTrace();
+	      }
+	    } catch (final IOException e) {
+        e.printStackTrace();
+	    }
+	  
+	    /*
+      try {
+        // Loading tokenizer model.
+        tokenModelIn = assetManager.open("en-token.bin");
+        final TokenizerModel tokenModel = new TokenizerModel(tokenModelIn);
+        tokenModelIn.close();
+          
+        _tokenizer = new TokenizerME(tokenModel);
+      } catch (final IOException ioe) {
+        ioe.printStackTrace();
+      } finally {
+        if (tokenModelIn != null) {
+          try {
+            tokenModelIn.close();
+          } catch (final IOException e) {} // oh well!
+        }
+      }
+      
+      try {
+        // Loading POS tagger model.
+        modelIn = assetManager.open("en-pos-maxent.bin");
+        final POSModel posModel = new POSModel(modelIn);
+        modelIn.close();
+        
+        _posTagger = new POSTaggerME(posModel);
       } catch (final IOException ioe) {
         ioe.printStackTrace();
       } finally {
@@ -97,6 +169,9 @@ public class Magic extends Activity {
           } catch (final IOException e) {} // oh well!
         }
       }
+      */
+
+    
       return context[0];
     }
       
@@ -114,51 +189,43 @@ public class Magic extends Activity {
       });
       mGestureDetector = createGestureDetector(context);
     }
-  
+    
   }
-  
+ 
+ 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
-	super.onCreate(savedInstanceState);
-	/*
-	 * We're creating a card for the interface.
-	 * 
-	 * More info here: http://developer.android.com/guide/topics/ui/themes.html
-	 */
-	card1 = new Card(this);
+    super.onCreate(savedInstanceState);
+    /*
+     * We're creating a card for the interface.
+     * 
+     * More info here: http://developer.android.com/guide/topics/ui/themes.html
+     */
+    card1 = new Card(this);
+    sentences = new ArrayList<ErroneousSentence>();
 	
     // Alert user if no recognition service is present.
     PackageManager pm = getPackageManager();
     List<ResolveInfo> activities = pm.queryIntentActivities(
         new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH), 0);
-    if (activities.size() == 0)
-    {
+    if (activities.size() == 0) {
       card1.setText("RECOGNIZER NOT PRESENT");
       View card1View = card1.toView();
       setContentView(card1View);
     }
     
-	new LoadModels().execute(this);
+    new LoadModels().execute(this);
   }
 
-  private GestureDetector createGestureDetector(Context context)
-  {
+  private GestureDetector createGestureDetector(Context context) {
     GestureDetector gestureDetector = new GestureDetector(context);
     // Create a base listener for generic gestures.
-    gestureDetector.setBaseListener(new GestureDetector.BaseListener()
-    {
+    gestureDetector.setBaseListener(new GestureDetector.BaseListener() {
       @Override
-      public boolean onGesture(Gesture gesture)
-      {
-        if (gesture == Gesture.TAP)
-        {
+      public boolean onGesture(Gesture gesture) {
+        if (gesture == Gesture.TAP) {
           // do something on tap
-          // Such as creating a new card and putting some info into it.
-          card1.setText("TAPPED GLASS"); // Main text area
-          View card1View = card1.toView();
       
-          // Display the card we just created
-          setContentView(card1View);
           startVoiceRecognitionActivity();
           return true;
         }
@@ -172,10 +239,8 @@ public class Magic extends Activity {
   /**
    * Send generic motion events to the gesture detector.
    */
-  public boolean onGenericMotionEvent(MotionEvent event)
-  {
-     if (mGestureDetector != null)
-     {
+  public boolean onGenericMotionEvent(MotionEvent event) {
+     if (mGestureDetector != null) {
     	 return mGestureDetector.onMotionEvent(event);
      }
      return false;
@@ -184,8 +249,7 @@ public class Magic extends Activity {
   /**
    * Fire an intent to start the voice recognition activity.
    */
-  private void startVoiceRecognitionActivity()
-  {
+  private void startVoiceRecognitionActivity() {
     Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
@@ -197,28 +261,137 @@ public class Magic extends Activity {
    * Handle the results from the voice recognition activity.
    */
   @Override
-  protected void onActivityResult(int requestCode, int resultCode, Intent data)
-  {
-    if (requestCode == REQUEST_CODE && resultCode == RESULT_OK)
-    {
+  protected void onActivityResult(int requestCode, int resultCode,
+                                  Intent data) {
+    if (requestCode == REQUEST_CODE && resultCode == RESULT_OK) {
       // Populate the card with the String value of the highest confidence rating which the recognition engine thought it heard.
       ArrayList<String> matches = data.getStringArrayListExtra(
           RecognizerIntent.EXTRA_RESULTS);
       // Get first match (which has highest confidence value)
 
       String best_match = matches.get(0);
+
+      // FIND PARTS OF SPEECH OF SPOKEN TEXT - ABSTRACT TO OTHER FUNCTION?
       
-      // FIND PARTS OF SPEECH OF SPOKEN TEXT.
+      //String[] all_tokens = _tokenizer.tokenize(best_match);
+      //String[] all_pos = _posTagger.tag(all_tokens);
       
-      String[] all_tokens = _tokenizer.tokenize(best_match);
-      String[] all_pos = _posTagger.tag(all_tokens);
+      // card1.setText(Arrays.toString(all_pos)); // Main text area
+      // View card1View = card1.toView();
       
-      card1.setText(Arrays.toString(all_pos)); // Main text area
+      // DETECT GRAMMATICAL ERRORS - ABSTRACT TO OTHER FUNCTION?
+          
+      List<RuleMatch> error_matches = new ArrayList<RuleMatch>();
+      try {
+        error_matches = _langTool.check(best_match);
+       
+        /* 
+        String improved_sentence = best_match;
+        for (RuleMatch match : error_matches) {
+          String replaced_word = best_match.substring(match.getFromPos(),
+                                                      match.getToPos());
+          String replacement = match.getSuggestedReplacements().get(0);
+          improved_sentence = best_match.replace(replaced_word,
+                                                 replacement);  
+        }
+      
+        // Set card to spoken text or grammatically improved spoken text if
+        // erroneous.
+        if (error_matches.size() == 0) {
+          // card1.setText(best_match);
+        }
+        else {
+          best_match = improved_sentence;
+          // card1.setText(best_match + "\n FIXED \n" + improved_sentence);
+        }
+        */
+      } catch (final IOException ioe) {
+        ioe.printStackTrace();
+      }
+      if (error_matches.size() > 0) {
+        // Only account for first error detected in sentence.
+        ErroneousSentence sentence = new ErroneousSentence(
+            best_match,
+            error_matches.get(0));
+        sentences.add(sentence);
+        
+        sentence.getSentenceDependencies(_lp);
+        sentence.makeDiagram(this);
+        /*
+        // PARSE SENTENCE DEPENDENCIES WITH STANFORD PARSER
+        TokenizerFactory<CoreLabel> tokenizerFactory =
+            PTBTokenizer.factory(new CoreLabelTokenFactory(), "");
+        Tokenizer<CoreLabel> tok =
+            tokenizerFactory.getTokenizer(new StringReader(best_match));
+        List<CoreLabel> rawWords = tok.tokenize();
+        
+        if (_lp == null) {
+          System.out.println("LP IS NULL");
+        }
+        Tree parse = _lp.apply(rawWords);
+        TreebankLanguagePack tlp = new PennTreebankLanguagePack();
+        GrammaticalStructureFactory gsf = tlp.grammaticalStructureFactory();
+        GrammaticalStructure gs = gsf.newGrammaticalStructure(parse);
+        List<TypedDependency> tdl = gs.typedDependencies(false);     
+
+        // TESTING THE SENTENCE DIAGRAM CLASS
+        SentenceDiagram diagram = new SentenceDiagram(tdl);
+        diagram.initDiagram();
+        Bitmap bmp = diagram.bmp;
+
+        // Create a File for saving an image or video.
+        File mediaStorageDir = new File(this.getCacheDir()
+            + this.getPackageName()
+            + "/Files");
+        System.out.println("TRYING TO WRITE FILE TO " + this.getCacheDir() + this.getPackageName() + "/Files");
+        // Create the storage directory if it does not exist.
+        if (!mediaStorageDir.exists()) {
+          if (!mediaStorageDir.mkdirs()) {
+            System.out.println("COULD NOT MAKE STORAGE DIR");
+          }
+        }
+        // Create a media file name
+        String timeStamp = new SimpleDateFormat("ddMMyyyy_HHmm").format(
+            new Date());
+        File mediaFile;
+        String mImageName = "MI_" + timeStamp + ".jpg";
+        mediaFile = new File(mediaStorageDir.getPath() + File.separator
+            + mImageName);
+        
+        if (mediaFile == null) {
+          System.out.println("Error creating media file, check storage permissions");
+        }
+        try {
+          FileOutputStream fos = new FileOutputStream(mediaFile);
+          bmp.compress(Bitmap.CompressFormat.PNG, 90, fos);
+          fos.close();
+        } catch (FileNotFoundException e) {
+          System.out.println("FILE NOT FOUND" + e.getMessage());
+        } catch (IOException e) {
+          System.out.println("ERROR ACCESSING FILE" + e.getMessage());
+        }
+        
+        Uri img = Uri.fromFile(mediaFile);
+        */
+
+      }
+
+      // For now, just displaying the diagram of the latest erroneous sentence.
+      // Change later.
+      if (!sentences.isEmpty()) {
+        Uri img = sentences.get(sentences.size()-1).diagramFile;
+        card1.setText("");
+        card1.setImageLayout(Card.ImageLayout.FULL);
+        card1.clearImages();
+        card1.addImage(img);
+      } else {
+    	card1.clearImages();
+        card1.setText(best_match);
+      }
       View card1View = card1.toView();
-      
-      // Display the card we just created
       setContentView(card1View);
     }
+	
     super.onActivityResult(requestCode, resultCode, data);
   }
 
