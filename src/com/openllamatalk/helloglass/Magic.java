@@ -284,27 +284,6 @@ public class Magic extends Activity {
       List<RuleMatch> error_matches = new ArrayList<RuleMatch>();
       try {
         error_matches = _langTool.check(best_match);
-       
-        /* 
-        String improved_sentence = best_match;
-        for (RuleMatch match : error_matches) {
-          String replaced_word = best_match.substring(match.getFromPos(),
-                                                      match.getToPos());
-          String replacement = match.getSuggestedReplacements().get(0);
-          improved_sentence = best_match.replace(replaced_word,
-                                                 replacement);  
-        }
-      
-        // Set card to spoken text or grammatically improved spoken text if
-        // erroneous.
-        if (error_matches.size() == 0) {
-          // card1.setText(best_match);
-        }
-        else {
-          best_match = improved_sentence;
-          // card1.setText(best_match + "\n FIXED \n" + improved_sentence);
-        }
-        */
       } catch (final IOException ioe) {
         ioe.printStackTrace();
       }
@@ -317,63 +296,6 @@ public class Magic extends Activity {
         
         sentence.getSentenceDependencies(_lp);
         sentence.makeDiagram(this);
-        /*
-        // PARSE SENTENCE DEPENDENCIES WITH STANFORD PARSER
-        TokenizerFactory<CoreLabel> tokenizerFactory =
-            PTBTokenizer.factory(new CoreLabelTokenFactory(), "");
-        Tokenizer<CoreLabel> tok =
-            tokenizerFactory.getTokenizer(new StringReader(best_match));
-        List<CoreLabel> rawWords = tok.tokenize();
-        
-        if (_lp == null) {
-          System.out.println("LP IS NULL");
-        }
-        Tree parse = _lp.apply(rawWords);
-        TreebankLanguagePack tlp = new PennTreebankLanguagePack();
-        GrammaticalStructureFactory gsf = tlp.grammaticalStructureFactory();
-        GrammaticalStructure gs = gsf.newGrammaticalStructure(parse);
-        List<TypedDependency> tdl = gs.typedDependencies(false);     
-
-        // TESTING THE SENTENCE DIAGRAM CLASS
-        SentenceDiagram diagram = new SentenceDiagram(tdl);
-        diagram.initDiagram();
-        Bitmap bmp = diagram.bmp;
-
-        // Create a File for saving an image or video.
-        File mediaStorageDir = new File(this.getCacheDir()
-            + this.getPackageName()
-            + "/Files");
-        System.out.println("TRYING TO WRITE FILE TO " + this.getCacheDir() + this.getPackageName() + "/Files");
-        // Create the storage directory if it does not exist.
-        if (!mediaStorageDir.exists()) {
-          if (!mediaStorageDir.mkdirs()) {
-            System.out.println("COULD NOT MAKE STORAGE DIR");
-          }
-        }
-        // Create a media file name
-        String timeStamp = new SimpleDateFormat("ddMMyyyy_HHmm").format(
-            new Date());
-        File mediaFile;
-        String mImageName = "MI_" + timeStamp + ".jpg";
-        mediaFile = new File(mediaStorageDir.getPath() + File.separator
-            + mImageName);
-        
-        if (mediaFile == null) {
-          System.out.println("Error creating media file, check storage permissions");
-        }
-        try {
-          FileOutputStream fos = new FileOutputStream(mediaFile);
-          bmp.compress(Bitmap.CompressFormat.PNG, 90, fos);
-          fos.close();
-        } catch (FileNotFoundException e) {
-          System.out.println("FILE NOT FOUND" + e.getMessage());
-        } catch (IOException e) {
-          System.out.println("ERROR ACCESSING FILE" + e.getMessage());
-        }
-        
-        Uri img = Uri.fromFile(mediaFile);
-        */
-
       }
 
       // For now, just displaying the diagram of the latest erroneous sentence.
