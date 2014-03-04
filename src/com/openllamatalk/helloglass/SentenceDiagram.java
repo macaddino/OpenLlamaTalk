@@ -26,6 +26,7 @@ public class SentenceDiagram {
   public int textDistFromVertLine;  // Space between text and vertical line.
   public int diagSpacing; // Space between two diagonal lines.
   public List<TypedDependency> dependencies; // Dependencies between words.
+  public String correctedWord;
   public Bitmap bmp;
   public Canvas canvas;
   public Paint mPaint;
@@ -35,8 +36,9 @@ public class SentenceDiagram {
   public int textSize;
 
 
-  SentenceDiagram(List<TypedDependency> deps) {
+  SentenceDiagram(List<TypedDependency> deps, String word) {
     dependencies = deps;
+    correctedWord = word;
     canvasHeight = 360;
     canvasWidth = 640;
     strokeWidth = 5;
@@ -73,9 +75,9 @@ public class SentenceDiagram {
       if (dep.reln().toString().equals("cop")) {
         predAdjOrNoun = dep.gov().toString();
         predAdjOrNounOrDobjWord = new SDWord(predAdjOrNoun, dep.gov(),
-                                             false, mPaint);
+                                             false, mPaint, correctedWord);
         pred = dep.dep().toString();
-        predWord = new SDWord(pred, dep.dep(), false, mPaint);
+        predWord = new SDWord(pred, dep.dep(), false, mPaint, correctedWord);
         vertDivisions = 3;
         textSize = 30;
         firstVertLineX = canvasWidth / 3;
@@ -83,7 +85,7 @@ public class SentenceDiagram {
         if (!predAdjOrNoun.equals(dep.dep().toString())) {
           pred = dep.dep().toString();
           firstVertLineX = canvasWidth / 2;
-          predWord = new SDWord(pred, dep.dep(), false, mPaint);
+          predWord = new SDWord(pred, dep.dep(), false, mPaint, correctedWord);
           break;
         }
       }
@@ -93,7 +95,8 @@ public class SentenceDiagram {
     for (TypedDependency dep : dependencies) {
       if (dep.reln().toString().equals("dobj")) {
         dobj = dep.dep().toString();
-        predAdjOrNounOrDobjWord = new SDWord(dobj, dep.dep(), false, mPaint);
+        predAdjOrNounOrDobjWord = new SDWord(dobj, dep.dep(), false, mPaint,
+        		                             correctedWord);
         vertDivisions = 3;
         textSize = 30;
         firstVertLineX = canvasWidth / 3;
@@ -107,7 +110,8 @@ public class SentenceDiagram {
           (dep.gov().toString().equals(pred) ||
            dep.gov().toString().equals(predAdjOrNoun))) {
         subject = dep.dep().toString();
-        subjectWord = new SDWord(subject, dep.dep(), false, mPaint);
+        subjectWord = new SDWord(subject, dep.dep(), false, mPaint,
+        		                                            correctedWord);
         break;
       }
     }
@@ -115,7 +119,8 @@ public class SentenceDiagram {
     // Handling command cases where subject "you" is implied.
     if (subject.equals("")) {
       subject = "(you)-0";
-      subjectWord = new SDWord(subject, new TreeGraphNode(), false, mPaint);
+      subjectWord = new SDWord(subject, new TreeGraphNode(), false, mPaint,
+    		                   correctedWord);
     }
 
 
@@ -138,7 +143,7 @@ public class SentenceDiagram {
     subjectWord.calculateDimensions();
     textDistFromHorizLine = canvasHeight / 2 - subjectWord.dimensions.height();
 
-
+    subjectWord.onPreDraw();
     canvas.drawText(subjectWord.word,
                     firstVertLineX - subjectWord.dimensions.width() - 50,
                     textDistFromHorizLine,
@@ -149,8 +154,10 @@ public class SentenceDiagram {
         textDistFromHorizLine - subjectWord.dimensions.height(),
         firstVertLineX - 50,
         textDistFromHorizLine);
+    subjectWord.onPostDraw();
 
     predWord.calculateDimensions();
+    predWord.onPreDraw();
     canvas.drawText(predWord.word,
                     firstVertLineX + 50,
                     textDistFromHorizLine,
@@ -160,9 +167,11 @@ public class SentenceDiagram {
         textDistFromHorizLine - predWord.dimensions.height(),
         firstVertLineX + predWord.dimensions.width() + 50,
         textDistFromHorizLine);
+    predWord.onPostDraw();
 
     if (vertDivisions == 3) {
       predAdjOrNounOrDobjWord.calculateDimensions();
+      predAdjOrNounOrDobjWord.onPreDraw();
       canvas.drawText(predAdjOrNounOrDobjWord.word,
                       firstVertLineX * 2 - 30 + 50,
                       textDistFromHorizLine,
@@ -172,6 +181,7 @@ public class SentenceDiagram {
           textDistFromHorizLine - predAdjOrNounOrDobjWord.dimensions.height(),
           firstVertLineX * 2 - 30 + predAdjOrNounOrDobjWord.dimensions.width() + 50,
           textDistFromHorizLine);
+      predAdjOrNounOrDobjWord.onPostDraw();
     }
 
     // Draw dependencies of subj, pred, and dobj/pred adj/pred n recursively.
@@ -221,7 +231,7 @@ public class SentenceDiagram {
         case IOBJ:
         case PARATAXIS:
         case POBJ:
-          // addHorizLine();
+          addHorizWord(dependent, governor);
           break;
         case APPOS:
         case POSSESSIVE:
@@ -273,19 +283,56 @@ public class SentenceDiagram {
     canvas.restore();
     mPaint.setTextSize(textSize);
     // Add dependent word to governing word's list of dependents.
-    SDWord word = new SDWord(dependent.toString(), dependent, true, mPaint);
+    SDWord word = new SDWord(dependent.toString(), dependent, true, mPaint,
+    		                 correctedWord);
     word.setDiagLineX(diagLineX);
     governor.dependents.add(word);
+    
+    for (TypedDependency dep : dependencies) {
+        if (dep.gov() == word.node) {
+          dependencyParse(dep.dep(), word, dep.reln().toString());
+        }
+    }
     
   }
 
   // Add word "dep" to diagram which will be horizontally placed under "gov".
   public void addHorizWord(TreeGraphNode dependent, SDWord governor) {
-    // If gov is diagonally placed word, draw horiz line under diag line.
-    // If gov is horizontally placed word, draw empty diag line and horiz line
-    // under it.
+    float diagLineX;
+    mPaint.setTextSize(25);
+    SDWord word = new SDWord(dependent.toString(), dependent, false, mPaint,
+                             correctedWord);
+    word.calculateDimensions();
+    if (!governor.isDiagonal) {
+      // If gov is horiz placed word, draw empty diag line under it.
+      diagLineX = governor.placement.left;
+      if (!governor.dependents.isEmpty()) {
+        for (SDWord chld : governor.dependents) {
+          if (chld.isDiagonal && chld.diagLineX >= diagLineX)
+            diagLineX = chld.diagLineX + 50;
+        }
+      }
+      canvas.drawLine(diagLineX, (float) canvasHeight / 2,
+                      diagLineX + 30, (float) canvasHeight / 2 + 70, mPaint);
+    } else {
+      diagLineX = governor.diagLineX;
+    }
+    // Draw horiz line.
+    canvas.drawLine(diagLineX + 30, canvasHeight / 2 + 70,
+                    diagLineX + 30 + word.dimensions.width() + 70,
+                    canvasHeight / 2 + 70, mPaint);
     // Draw word on horizontal line.
+
+
+    word.onPreDraw();
+    canvas.drawText(word.word,
+                    diagLineX + 30 + 30,
+                    canvasHeight / 2 + 70 - 20,
+                    mPaint);
+    // TODO: ADD PLACEMENT DATA FOR Word.
+    word.onPostDraw();
     // Save word as part of governor's dependents.
+    governor.dependents.add(word);
   }
 }
   

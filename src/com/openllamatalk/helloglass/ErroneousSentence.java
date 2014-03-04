@@ -44,11 +44,13 @@ public class ErroneousSentence {
   public SentenceDiagram diagram;
   public Uri diagramFile;  // Stored in cacheDir
   public boolean isDiagramComplete;  // Has diagram been written yet?
+  public Context context;  // Android context
 
-  public ErroneousSentence(String sentence, RuleMatch error) {
+  public ErroneousSentence(String sentence, RuleMatch error, Context cntxt) {
     wrongSentence = sentence;
     errorType = error.getShortMessage();
     isDiagramComplete = false;
+    context = cntxt;
 
     String replaced_word = wrongSentence.substring(error.getFromPos(),
                                                    error.getToPos());
@@ -83,8 +85,8 @@ public class ErroneousSentence {
   }
   
 
-  public void makeDiagram(Context context) {
-    diagram = new SentenceDiagram(wordDeps);
+  public void makeDiagram() {
+    diagram = new SentenceDiagram(wordDeps, wordReplacement);
     diagram.initDiagram();
     Bitmap bmp = diagram.bmp;
 

@@ -12,6 +12,7 @@ package com.openllamatalk.helloglass;
 import java.util.ArrayList;
 import java.util.List;
 
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 
@@ -26,14 +27,22 @@ public class SDWord {
   public boolean isDiagonal;
   public float diagLineX;    // Leftmost x value of diagonal line.
   private Paint mPaint;
+  public int color;
   public List<SDWord> dependents;
 
-  public SDWord(String wrd, TreeGraphNode nd, boolean diagonal, Paint mPnt) {
+  public SDWord(String wrd, TreeGraphNode nd, boolean diagonal, Paint mPnt,
+                String correctedWord) {
     node = nd;
     dimensions = new Rect();
     placement = new Rect();
     word = wrd;
     isDiagonal = diagonal;
+    if (wrd.length() > correctedWord.length() &&
+        wrd.substring(0, correctedWord.length()).equals(correctedWord)) {
+      color = Color.RED;
+    } else {
+      color = Color.BLACK;
+    }
     mPaint = mPnt;
     dependents = new ArrayList<SDWord>();
   }
@@ -46,5 +55,15 @@ public class SDWord {
 
   public void setDiagLineX(float xVal) {
     diagLineX = xVal;
+  }
+
+
+  public void onPreDraw() {
+    mPaint.setColor(color);
+  }
+
+
+  public void onPostDraw() {
+    mPaint.setColor(Color.BLACK);
   }
 }
