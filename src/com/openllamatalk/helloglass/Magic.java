@@ -5,20 +5,14 @@
  */
 package com.openllamatalk.helloglass;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
-import java.io.StringReader;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
+import junit.framework.Assert;
 
 /*
 import opennlp.tools.postag.POSModel;
@@ -40,15 +34,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.AssetManager;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
+import android.os.SystemClock;
 import android.speech.RecognizerIntent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -59,36 +47,34 @@ import android.widget.AdapterView.OnItemClickListener;
 import com.google.android.glass.app.Card;
 import com.google.android.glass.widget.CardScrollAdapter;
 import com.google.android.glass.widget.CardScrollView;
-import com.google.android.glass.touchpad.Gesture;
-import com.google.android.glass.touchpad.GestureDetector;
 
-import edu.stanford.nlp.ling.CoreLabel;
-import edu.stanford.nlp.ling.TaggedWord;
 import edu.stanford.nlp.parser.lexparser.LexicalizedParser;
-import edu.stanford.nlp.process.CoreLabelTokenFactory;
-import edu.stanford.nlp.process.PTBTokenizer;
-import edu.stanford.nlp.process.Tokenizer;
-import edu.stanford.nlp.process.TokenizerFactory;
-import edu.stanford.nlp.trees.GrammaticalStructure;
-import edu.stanford.nlp.trees.GrammaticalStructureFactory;
-import edu.stanford.nlp.trees.PennTreebankLanguagePack;
-import edu.stanford.nlp.trees.Tree;
-import edu.stanford.nlp.trees.TreebankLanguagePack;
-import edu.stanford.nlp.trees.TypedDependency;
 
 public class Magic extends Activity {
 	
   private static final int REQUEST_CODE = 1234;
-  private ArrayList<Card> whileRecordingCards = new ArrayList<Card>();
+  private ArrayList<Card> mainMenuCards = new ArrayList<Card>();
+  private Card dashboardCard;
+  private ArrayList<Card> dashOptionsCards = new ArrayList<Card>();
+  private ArrayList<Card> fillerCards = new ArrayList<Card>();
   private ArrayList<Card> senCards = new ArrayList<Card>();
-  private ArrayList<String> whileRecordingText = new ArrayList<String>(
+  
+  private ArrayList<String> mainMenuText = new ArrayList<String>(
       Arrays.asList("Say a sentence", "Dashboard"));
-  private CardScrollView csvCardsView = null;
+  private ArrayList<String> dashOptionsText = new ArrayList<String>(
+      Arrays.asList("Grammatical errors", "Filler words",
+    		        "Return to main menu"));
+  
+  private CardScrollView mainMenuCardsView = null;
+  private CardScrollView dashboardView = null;
+  private CardScrollView dashOptionsView = null;
+  private CardScrollView fillerView = null;
   private CardScrollView senCardsView = null;
+  private boolean dashboardLock = false;
   private Card card1;
 
-  private List<ErroneousSentence> sentences;
-  private GestureDetector mGestureDetector;
+  private int total_sentences = 0;
+  private List<ErroneousSentence> err_sentences;
   /*
   private InputStream modelIn = null;
   private InputStream tokenModelIn = null;
@@ -197,17 +183,16 @@ public class Magic extends Activity {
       runOnUiThread(new Runnable() {
         @Override
         public void run() {
-          csvCardsView.activate();
-          setContentView(csvCardsView);
+          mainMenuCardsView.activate();
+          setContentView(mainMenuCardsView);
         }
       });
-      mGestureDetector = createGestureDetector(context);
     }
     
   }
 
  
-  private class csaAdapter extends CardScrollAdapter
+  private class mainMenuAdapter extends CardScrollAdapter
       implements OnItemClickListener {
 
     @Override
@@ -217,42 +202,189 @@ public class Magic extends Activity {
 
     @Override
     public int findItemPosition(Object item) {
-      return whileRecordingCards.indexOf(item);
+      return mainMenuCards.indexOf(item);
     }
 
     @Override
     public int getCount() {
-      return whileRecordingCards.size();
+      return mainMenuCards.size();
     }
 
     @Override
     public Object getItem(int position) {
-      return whileRecordingCards.get(position);
+      return mainMenuCards.get(position);
     }
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
-      return whileRecordingCards.get(position).toView();
+      return mainMenuCards.get(position).toView();
     }
 
     public void onItemClick(AdapterView<?> parent, View v, int position,
                             long id) {
-      System.out.println("DETECTED AN ITEM CLICK OF POSITION " + position);
-      if (this.getItem(position) == whileRecordingCards.get(0)) {
+      if (this.getItem(position) == mainMenuCards.get(0)) {
         // Record sentence.
         startVoiceRecognitionActivity();
-      } else if (this.getItem(position) == whileRecordingCards.get(1)) {
+      } else if (this.getItem(position) == mainMenuCards.get(1)) {
         // Display dashboard if erroneous sentences have been made.
-        if (!senCards.isEmpty()) {
-          csvCardsView.deactivate();
-          senCardsView.activate();
-          setContentView(senCardsView);
+        while (dashboardLock) {
+          // Sleep 2 seconds if dashboard is being modified.
+          SystemClock.sleep(2000);
         }
+        dashboardLock = true;
+        mainMenuCardsView.deactivate();
+        
+        String total_sentences_plural = "s have";
+        String err_sentences_plural = "s have";
+        if (total_sentences == 1) {
+          total_sentences_plural = " has";
+        }
+        if (err_sentences.size() == 1) {
+          err_sentences_plural = " has";
+        }
+
+        dashboardCard.setText(total_sentences + " sentence" +
+                              total_sentences_plural + " been spoken.\n" +
+                              err_sentences.size() + " grammar error" +
+                              err_sentences_plural + " been made.");
+
+        dashboardView.updateViews(true);
+        dashboardView.activate();
+        setContentView(dashboardView);
       }
     }
   }
+  
 
+  private class dashboardAdapter extends CardScrollAdapter
+      implements OnItemClickListener {
+    
+    @Override
+	public int findIdPosition(Object id) {
+	  return -1;
+	}
+    
+    @Override
+    public int findItemPosition(Object item) {
+      return 0;
+    }
+    
+    @Override
+    public int getCount() {
+      return 1;
+    }
+    
+    @Override
+    public Object getItem(int position) {
+      return dashboardCard;
+    }
+    
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+      return dashboardCard.toView();
+    }
+    
+    public void onItemClick(AdapterView<?> parent, View v, int position,
+            long id) {
+      Assert.assertEquals(dashboardLock, true);
+      dashboardView.deactivate();
+      dashOptionsView.activate();
+      setContentView(dashOptionsView);
+    }
+  }
 
+  
+  private class dashOptionsAdapter extends CardScrollAdapter
+      implements OnItemClickListener {
+    
+    @Override
+	public int findIdPosition(Object id) {
+	  return -1;
+	}
+    
+    @Override
+    public int findItemPosition(Object item) {
+      return dashOptionsCards.indexOf(item);
+    }
+    
+    @Override
+    public int getCount() {
+      return dashOptionsCards.size();
+    }
+    
+    @Override
+    public Object getItem(int position) {
+      return dashOptionsCards.get(position);
+    }
+    
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+      return dashOptionsCards.get(position).toView();
+    }
+    
+    public void onItemClick(AdapterView<?> parent, View v, int position,
+            long id) {
+      Assert.assertEquals(dashboardLock, true);
+      // Look at grammatical errors.
+      if (position == 0 && !senCards.isEmpty()) {
+        dashOptionsView.deactivate();
+        senCardsView.activate();
+        setContentView(senCardsView);
+      } else if (position == 1 && !fillerCards.isEmpty()) {
+      // Look at fillers.
+        dashOptionsView.deactivate();
+        fillerView.activate();
+        setContentView(fillerView);
+      } else if (position == 2) {
+        // Return to main menu.
+        dashboardLock = false;
+        dashOptionsView.deactivate();
+        mainMenuCardsView.activate();
+        setContentView(mainMenuCardsView);
+      }
+    }
+  }
+  
+  
+  private class fillerWordsAdapter extends CardScrollAdapter
+      implements OnItemClickListener {
+    
+    @Override
+    public int findIdPosition(Object id) {
+        return -1;
+    }
+    
+    @Override
+    public int findItemPosition(Object item) {
+      return fillerCards.indexOf(item);
+    }
+    
+    @Override
+    public int getCount() {
+      return fillerCards.size();
+    }
+    
+    @Override
+    public Object getItem(int position) {
+      return fillerCards.get(position);
+    }
+    
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+      return fillerCards.get(position).toView();
+    }
+    
+    public void onItemClick(AdapterView<?> parent, View v, int position,
+            long id) {
+      // Return to dashboard.
+      Assert.assertEquals(dashboardLock, true);
+      fillerView.deactivate();
+      dashboardView.activate();
+      setContentView(dashboardView);
+    }
+  }
+  
+  
   private class sentenceAdapter extends CardScrollAdapter 
       implements OnItemClickListener {
 
@@ -283,10 +415,11 @@ public class Magic extends Activity {
 
     public void onItemClick(AdapterView<?> parent, View v, int position,
                             long id) {
-      // Return to main menu.
+      // Return to dashboard.
+      Assert.assertEquals(dashboardLock, true);
       senCardsView.deactivate();
-      csvCardsView.activate();
-      setContentView(csvCardsView);
+      dashboardView.activate();
+      setContentView(dashboardView);
     }
 
   }
@@ -297,20 +430,27 @@ public class Magic extends Activity {
   // Load an erroneous sentence's information/diagrams into respective cards.
     protected ErroneousSentence doInBackground(ErroneousSentence... sen) {
       ErroneousSentence sentence = sen[0];
-      sentences.add(sentence);
-      sentence.getSentenceDependencies(_lp);
+      sentence.getSentenceDependencies();
       sentence.makeDiagram();
 
       return sentence;
     }
 
     protected void onPostExecute(ErroneousSentence sentence) {
+      err_sentences.add(sentence);
+      
       Card newCard = new Card(sentence.context);
       newCard.setImageLayout(Card.ImageLayout.FULL);
       newCard.addImage(sentence.diagramFile);
       newCard.setFootnote(sentence.errorType);
       // Should there be a lock around senCards here?
-      senCards.add(0, newCard);
+      while (dashboardLock) {
+        // Sleep 2 seconds if dashboard is being viewed.
+        SystemClock.sleep(2000);
+      }
+      dashboardLock = true;
+      senCards.add(newCard);
+      dashboardLock = false;
     }
   }
 
@@ -323,25 +463,49 @@ public class Magic extends Activity {
      * 
      * More info here: http://developer.android.com/guide/topics/ui/themes.html
      */
-    for (int i = 0; i < whileRecordingText.size(); ++i) {
+    card1 = new Card(this);
+    err_sentences = new ArrayList<ErroneousSentence>();
+    
+    for (int i = 0; i < mainMenuText.size(); ++i) {
       Card newCard = new Card(this);
       newCard.setImageLayout(Card.ImageLayout.FULL);
-      newCard.setText(whileRecordingText.get(i));
-      whileRecordingCards.add(newCard);
+      newCard.setText(mainMenuText.get(i));
+      mainMenuCards.add(newCard);
     }
 
-    csvCardsView = new CardScrollView(this);
-    csaAdapter cvAdapter = new csaAdapter();
-    csvCardsView.setAdapter(cvAdapter);
-    csvCardsView.setOnItemClickListener(cvAdapter);
+    mainMenuCardsView = new CardScrollView(this);
+    mainMenuAdapter mMenuAdapter = new mainMenuAdapter();
+    mainMenuCardsView.setAdapter(mMenuAdapter);
+    mainMenuCardsView.setOnItemClickListener(mMenuAdapter);
+    
+    dashboardCard = new Card(this);
+    dashboardCard.setImageLayout(Card.ImageLayout.FULL);
+    dashboardView = new CardScrollView(this);
+    dashboardAdapter dashAdapter = new dashboardAdapter();
+    dashboardView.setAdapter(dashAdapter);
+    dashboardView.setOnItemClickListener(dashAdapter);
+    
+    for (int i = 0; i < dashOptionsText.size(); ++i) {
+      Card newCard = new Card(this);
+      newCard.setImageLayout(Card.ImageLayout.FULL);
+      newCard.setText(dashOptionsText.get(i));
+      dashOptionsCards.add(newCard);
+    }
+    
+    dashOptionsView = new CardScrollView(this);
+    dashOptionsAdapter dashOptAdapter = new dashOptionsAdapter();
+    dashOptionsView.setAdapter(dashOptAdapter);
+    dashOptionsView.setOnItemClickListener(dashOptAdapter);
+    
+    fillerView = new CardScrollView(this);
+    fillerWordsAdapter fillerAdapter = new fillerWordsAdapter();
+    fillerView.setAdapter(fillerAdapter);
+    fillerView.setOnItemClickListener(fillerAdapter);
 
     senCardsView = new CardScrollView(this);
     sentenceAdapter senAdapter = new sentenceAdapter();
     senCardsView.setAdapter(senAdapter);
     senCardsView.setOnItemClickListener(senAdapter);
-
-    card1 = new Card(this);
-    sentences = new ArrayList<ErroneousSentence>();
 	
     // Alert user if no recognition service is present.
     PackageManager pm = getPackageManager();
@@ -356,45 +520,7 @@ public class Magic extends Activity {
     new LoadModels().execute(this);
   }
 
-  private GestureDetector createGestureDetector(Context context) {
-    GestureDetector gestureDetector = new GestureDetector(context);
-    // Create a base listener for generic gestures.
-    gestureDetector.setBaseListener(new GestureDetector.BaseListener() {
-      @Override
-      public boolean onGesture(Gesture gesture) {
-        if (gesture == Gesture.TAP) {
-          // do something on tap
-          if (csvCardsView.isActivated()) {
-            if (csvCardsView.getSelectedItem() ==
-                whileRecordingCards.get(0)) {
-              startVoiceRecognitionActivity();
-            }
-            else if (csvCardsView.getSelectedItem() ==
-                     whileRecordingCards.get(1)) {
-              csvCardsView.deactivate();
-              senCardsView.activate();
-              setContentView(senCardsView);
-            }
-            return true;
-          }
-        }
-        return false;
-      }
-    });
-
-    return gestureDetector;
-  }
   
-  /**
-   * Send generic motion events to the gesture detector.
-   */
-  public boolean onGenericMotionEvent(MotionEvent event) {
-     if (mGestureDetector != null) {
-    	 return mGestureDetector.onMotionEvent(event);
-     }
-     return false;
-  }
-
   /**
    * Fire an intent to start the voice recognition activity.
    */
@@ -413,11 +539,11 @@ public class Magic extends Activity {
   protected void onActivityResult(int requestCode, int resultCode,
                                   Intent data) {
     if (requestCode == REQUEST_CODE && resultCode == RESULT_OK) {
-      // Populate the card with the String value of the highest confidence rating which the recognition engine thought it heard.
+      total_sentences++;
+
+      // Get first speech to text match (which has highest confidence value)
       ArrayList<String> matches = data.getStringArrayListExtra(
           RecognizerIntent.EXTRA_RESULTS);
-      // Get first match (which has highest confidence value)
-
       String best_match = matches.get(0);
 
       // FIND PARTS OF SPEECH OF SPOKEN TEXT - ABSTRACT TO OTHER FUNCTION?
@@ -441,6 +567,7 @@ public class Magic extends Activity {
         ErroneousSentence sentence = new ErroneousSentence(
             best_match,
             error_matches.get(0),
+            _lp,
             this);
         
         // Create sentence visualization in background.
@@ -448,7 +575,7 @@ public class Magic extends Activity {
       }
 
       // Display options menu again.
-      setContentView(csvCardsView);
+      setContentView(mainMenuCardsView);
     }
 	
     super.onActivityResult(requestCode, resultCode, data);

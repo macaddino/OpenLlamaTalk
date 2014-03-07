@@ -41,15 +41,18 @@ public class ErroneousSentence {
   public String wordReplacement;  // In case we want word to be red in diagram.
   public String errorType;
   public List<TypedDependency> wordDeps;
+  public LexicalizedParser _lp;
   public SentenceDiagram diagram;
   public Uri diagramFile;  // Stored in cacheDir
   public boolean isDiagramComplete;  // Has diagram been written yet?
   public Context context;  // Android context
 
-  public ErroneousSentence(String sentence, RuleMatch error, Context cntxt) {
+  public ErroneousSentence(String sentence, RuleMatch error, LexicalizedParser lp,
+		                   Context cntxt) {
     wrongSentence = sentence;
     errorType = error.getShortMessage();
     isDiagramComplete = false;
+    _lp = lp;
     context = cntxt;
 
     String replaced_word = wrongSentence.substring(error.getFromPos(),
@@ -67,17 +70,17 @@ public class ErroneousSentence {
 
 
   // Get word dependencies in corrected sentence (such as nsubj, pred, dobj).
-  public void getSentenceDependencies(LexicalizedParser lp) {
+  public void getSentenceDependencies() {
     TokenizerFactory<CoreLabel> tokenizerFactory =
         PTBTokenizer.factory(new CoreLabelTokenFactory(), "");
     Tokenizer<CoreLabel> tok =
         tokenizerFactory.getTokenizer(new StringReader(correctedSentence));
     List<CoreLabel> rawWords = tok.tokenize();
 
-    if (lp == null) {
+    if (_lp == null) {
       System.out.println("LP IS NULL");
     }
-    Tree parse = lp.apply(rawWords);
+    Tree parse = _lp.apply(rawWords);
     TreebankLanguagePack tlp = new PennTreebankLanguagePack();
     GrammaticalStructureFactory gsf = tlp.grammaticalStructureFactory();
     GrammaticalStructure gs = gsf.newGrammaticalStructure(parse);

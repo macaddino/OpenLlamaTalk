@@ -28,15 +28,17 @@ public class SDWord {
   public float diagLineX;    // Leftmost x value of diagonal line.
   private Paint mPaint;
   public int color;
+  public int row;  // Sentence Diagram row which word is placed on.
   public List<SDWord> dependents;
 
   public SDWord(String wrd, TreeGraphNode nd, boolean diagonal, Paint mPnt,
-                String correctedWord) {
+                String correctedWord, int r) {
     node = nd;
     dimensions = new Rect();
     placement = new Rect();
     word = wrd;
     isDiagonal = diagonal;
+    row = r;
     if (wrd.length() > correctedWord.length() &&
         wrd.substring(0, correctedWord.length()).equals(correctedWord)) {
       color = Color.RED;
