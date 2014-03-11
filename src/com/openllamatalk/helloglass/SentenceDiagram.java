@@ -26,7 +26,8 @@ public class SentenceDiagram {
   public int textDistFromHorizLine;  // Space between text and horiz line.
   public int textDistFromVertLine;  // Space between text and vertical line.
   public int diagSpacing; // Space between two diagonal lines.
-  public List<TypedDependency> dependencies; // Dependencies between words.
+  //public List<TypedDependency> dependencies; // Dependencies between words.
+  public List<SDDependency> dependencies;  // Dependencies between words.
   public List<SDRow> rows;  // Sentence diagram rows.
   public String correctedWord;
   public Bitmap bmp;
@@ -38,7 +39,8 @@ public class SentenceDiagram {
   public int textSize;
 
 
-  SentenceDiagram(List<TypedDependency> deps, String word) {
+  //SentenceDiagram(List<TypedDependency> deps, String word) {
+  SentenceDiagram(List<SDDependency> deps, String word) {
     dependencies = deps;
     correctedWord = word;
     canvasHeight = 360;
@@ -75,23 +77,28 @@ public class SentenceDiagram {
     rows.add(diagramSkeleton);
 
     // Find verb, and dobj/pred adj/pred noun if present.
-    for (TypedDependency dep : dependencies) {
-      if (dep.reln().toString().equals("cop")) {
-        predAdjOrNoun = dep.gov().toString();
-        predAdjOrNounOrDobjWord = new SDWord(predAdjOrNoun, dep.gov(),
+    // for (TypedDependency dep : dependencies) {
+    for (SDDependency dep : dependencies) {
+      //if (dep.reln().toString().equals("cop")) {
+      System.out.println(dep.reln);
+      System.out.println("SIZE OF DEPS: " + dependencies.size());
+      if (dep.reln.equals("cop")) {
+        //predAdjOrNoun = dep.gov().toString();
+    	predAdjOrNoun = dep.gov;
+        predAdjOrNounOrDobjWord = new SDWord(predAdjOrNoun,
                                              false, mPaint, correctedWord,
                                              diagramSkeleton.level);
-        pred = dep.dep().toString();
-        predWord = new SDWord(pred, dep.dep(), false, mPaint, correctedWord,
+        pred = dep.dep;
+        predWord = new SDWord(pred, false, mPaint, correctedWord,
                               diagramSkeleton.level);
         vertDivisions = 3;
         diagramSkeleton.horizTextSize = 30;
         firstVertLineX = canvasWidth / 3;
-      } else if (dep.reln().toString().equals("root")) {
-        if (!predAdjOrNoun.equals(dep.dep().toString())) {
-          pred = dep.dep().toString();
+      } else if (dep.reln.equals("root")) {
+        if (!predAdjOrNoun.equals(dep.dep)) {
+          pred = dep.dep;
           firstVertLineX = canvasWidth / 2;
-          predWord = new SDWord(pred, dep.dep(), false, mPaint, correctedWord,
+          predWord = new SDWord(pred, false, mPaint, correctedWord,
                                 diagramSkeleton.level);
           break;
         }
@@ -99,10 +106,10 @@ public class SentenceDiagram {
     }
 
     // Find direct object.
-    for (TypedDependency dep : dependencies) {
-      if (dep.reln().toString().equals("dobj")) {
-        dobj = dep.dep().toString();
-        predAdjOrNounOrDobjWord = new SDWord(dobj, dep.dep(), false, mPaint,
+    for (SDDependency dep : dependencies) {
+      if (dep.reln.equals("dobj")) {
+        dobj = dep.dep;
+        predAdjOrNounOrDobjWord = new SDWord(dobj, false, mPaint,
         		                             correctedWord, diagramSkeleton.level);
         vertDivisions = 3;
         diagramSkeleton.horizTextSize = 30;
@@ -112,12 +119,12 @@ public class SentenceDiagram {
     }
 
     // Find subject.
-    for (TypedDependency dep : dependencies) {
-      if (dep.reln().toString().equals("nsubj") &&
-          (dep.gov().toString().equals(pred) ||
-           dep.gov().toString().equals(predAdjOrNoun))) {
-        subject = dep.dep().toString();
-        subjectWord = new SDWord(subject, dep.dep(), false, mPaint,
+    for (SDDependency dep : dependencies) {
+      if (dep.reln.equals("nsubj") &&
+          (dep.gov.equals(pred) ||
+           dep.gov.equals(predAdjOrNoun))) {
+        subject = dep.dep;
+        subjectWord = new SDWord(subject, false, mPaint,
                                  correctedWord, diagramSkeleton.level);
         break;
       }
@@ -126,7 +133,7 @@ public class SentenceDiagram {
     // Handling command cases where subject "you" is implied.
     if (subject.equals("")) {
       subject = "(you)-0";
-      subjectWord = new SDWord(subject, new TreeGraphNode(), false, mPaint,
+      subjectWord = new SDWord(subject, false, mPaint,
  	                             correctedWord, diagramSkeleton.level);
     }
 
@@ -153,31 +160,31 @@ public class SentenceDiagram {
     subjectWord.calculateDimensions();
     subjectWord.onPreDraw();
     canvas.drawText(subjectWord.word,
-                    firstVertLineX - subjectWord.dimensions.width() - 50,
+                    firstVertLineX - subjectWord.dimensions.width() - 20,
                     diagramSkeleton.yCoordToWriteHorizText,
                     mPaint);
     System.out.println("THIS IS TEXTDISTFROMHORIZLINE: " + textDistFromHorizLine);
     System.out.println("THIS IS FIRST VERTICAL X POS: " + firstVertLineX + ", WIDTH OF SUBJECT " + subjectWord.dimensions.width());
     subjectWord.placement.set(
-        firstVertLineX - subjectWord.dimensions.width() - 50,
+        firstVertLineX - subjectWord.dimensions.width() - 20,
         (int) diagramSkeleton.yCoordToWriteHorizText -
             subjectWord.dimensions.height(),
-        firstVertLineX - 50,
-        (int) diagramSkeleton.yCoordToWriteHorizText);
+        firstVertLineX - 20,
+        (int) diagramSkeleton.yCoordToWriteHorizText + 20);
     subjectWord.onPostDraw();
 
     predWord.calculateDimensions();
     predWord.onPreDraw();
     canvas.drawText(predWord.word,
-                    firstVertLineX + 50,
+                    firstVertLineX + 20,
                     diagramSkeleton.yCoordToWriteHorizText,
                     mPaint);
     predWord.placement.set(
-        firstVertLineX + 50,
+        firstVertLineX + 20,
         (int) diagramSkeleton.yCoordToWriteHorizText -
             predWord.dimensions.height(),
-        firstVertLineX + predWord.dimensions.width() + 50,
-        (int) diagramSkeleton.yCoordToWriteHorizText);
+        firstVertLineX + predWord.dimensions.width() + 20,
+        (int) diagramSkeleton.yCoordToWriteHorizText + 20);
     predWord.onPostDraw();
 
     if (vertDivisions == 3) {
@@ -192,27 +199,27 @@ public class SentenceDiagram {
           (int) diagramSkeleton.yCoordToWriteHorizText -
               predAdjOrNounOrDobjWord.dimensions.height(),
           firstVertLineX * 2 - 30 + predAdjOrNounOrDobjWord.dimensions.width() + 50,
-          (int) diagramSkeleton.yCoordToWriteHorizText);
+          (int) diagramSkeleton.yCoordToWriteHorizText + 20);
       predAdjOrNounOrDobjWord.onPostDraw();
     }
 
     // Draw dependencies of subj, pred, and dobj/pred adj/pred n recursively.
-    for (TypedDependency dep : dependencies) {
-      if (dep.gov() == subjectWord.node) {
-        dependencyParse(dep.dep(), subjectWord, dep.reln().toString(),
+    for (SDDependency dep : dependencies) {
+      if (dep.gov.equals(subjectWord.word)) {
+        dependencyParse(dep.dep, subjectWord, dep.reln,
                         subjectWord.row + 1);
       }
-      else if (dep.gov() == predWord.node) {
-    	if (!dep.reln().toString().equals("dobj") &&
-    	    !dep.reln().toString().equals("nsubj"))
-          dependencyParse(dep.dep(), predWord, dep.reln().toString(),
+      else if (dep.gov.equals(predWord.word)) {
+    	if (!dep.reln.equals("dobj") &&
+    	    !dep.reln.equals("nsubj"))
+          dependencyParse(dep.dep, predWord, dep.reln,
                           predWord.row + 1);
       }
-      else if (vertDivisions == 3 && dep.gov() == predAdjOrNounOrDobjWord.node) {
-    	if (!dep.reln().toString().equals("nsubj") &&
-    	    !dep.reln().toString().equals("cop"))
-          dependencyParse(dep.dep(), predAdjOrNounOrDobjWord,
-                          dep.reln().toString(),
+      else if (vertDivisions == 3 && dep.gov.equals(predAdjOrNounOrDobjWord.word)) {
+    	if (!dep.reln.equals("nsubj") &&
+    	    !dep.reln.equals("cop"))
+          dependencyParse(dep.dep, predAdjOrNounOrDobjWord,
+                          dep.reln,
                           predAdjOrNounOrDobjWord.row + 1);
       }
     }
@@ -221,9 +228,9 @@ public class SentenceDiagram {
 
   // Depending on dependency relationship between "dep" and "gov", place "dep"
   // on diagram in relation to "gov".
-  public void dependencyParse(TreeGraphNode dependent, SDWord governor,
+  public void dependencyParse(String dependent, SDWord governor,
                               String depType, int row) {
-    System.out.println("CHILDPARSE CALLED ON " + dependent.toString());
+    System.out.println("CHILDPARSE CALLED ON " + dependent);
     System.out.println("THIS CHILD HAS A DEP WITH PARENT OF " + depType);
     // Make sure the corresponding sentence diagram row has already been created.
     SDRow r;
@@ -262,11 +269,11 @@ public class SentenceDiagram {
         case APPOS:
         case POSSESSIVE:
         case PRT:
-          // appendWord(true);
+          appendWord(dependent, governor, true);
           break;
         case AUX:
         case TMOD:
-          // appendWord(false);
+          appendWord(dependent, governor, false);
           break;
         case ADVCL:
         case CSUBJ:
@@ -286,7 +293,7 @@ public class SentenceDiagram {
   
 
   // Add word "dep" to diagram which will be diagonally placed under "gov".
-  public void addDiagWord(TreeGraphNode dependent, SDWord governor,
+  public void addDiagWord(String dependent, SDWord governor,
                           SDRow row) {
     // For now, don't handle cases where governor is also diagonal.
     if (governor.isDiagonal)
@@ -309,19 +316,19 @@ public class SentenceDiagram {
     canvas.save();
     canvas.rotate(65, diagLineX + 20, row.yCoordToWriteDiagText);
     mPaint.setTextSize(row.diagTextSize);
-    canvas.drawText(dependent.toString(), diagLineX + 20,
+    canvas.drawText(dependent, diagLineX + 20,
                     row.yCoordToWriteDiagText, mPaint);
     canvas.restore();
     // Add dependent word to governing word's list of dependents.
-    SDWord word = new SDWord(dependent.toString(), dependent, true, mPaint,
+    SDWord word = new SDWord(dependent, true, mPaint,
                              correctedWord, row.level);
     word.setDiagLineX(diagLineX);
     governor.dependents.add(word);
     
     // Diagram dependencies of the dependent.
-    for (TypedDependency dep : dependencies) {
-      if (dep.gov() == word.node) {
-        dependencyParse(dep.dep(), word, dep.reln().toString(),
+    for (SDDependency dep : dependencies) {
+      if (dep.gov.equals(word.word)) {
+        dependencyParse(dep.dep, word, dep.reln,
                         word.row);
       }
     }
@@ -329,11 +336,11 @@ public class SentenceDiagram {
   }
 
   // Add word "dep" to diagram which will be horizontally placed under "gov".
-  public void addHorizWord(TreeGraphNode dependent, SDWord governor,
+  public void addHorizWord(String dependent, SDWord governor,
                            SDRow row) {
     float diagLineX;
     mPaint.setTextSize(row.horizTextSize);
-    SDWord word = new SDWord(dependent.toString(), dependent, false, mPaint,
+    SDWord word = new SDWord(dependent, false, mPaint,
                              correctedWord, row.level);
     word.calculateDimensions();
     if (!governor.isDiagonal) {
@@ -365,15 +372,75 @@ public class SentenceDiagram {
         (int) diagLineX + 30 + 30,
         (int) row.yCoordToWriteHorizText - word.dimensions.height(),
         (int) diagLineX + 30 + 30 + word.dimensions.width(),
-        (int) row.yCoordToWriteHorizText);
+        (int) row.yCoordToWriteHorizText + 15);
     word.onPostDraw();
     // Save word as part of governor's dependents.
     governor.dependents.add(word);
 
     // Diagram dependencies of the dependent.
-    for (TypedDependency dep : dependencies) {
-      if (dep.gov() == word.node) {
-        dependencyParse(dep.dep(), word, dep.reln().toString(),
+    for (SDDependency dep : dependencies) {
+      if (dep.gov.equals(word.word)) {
+        dependencyParse(dep.dep, word, dep.reln,
+                        word.row + 1);
+      }
+    }
+  }
+  
+  
+  public void appendWord(String dependent, SDWord governor,
+                         boolean depFollowsGov) {
+	SDRow row = rows.get(governor.row);
+    int yPlacement = (int) row.yCoordToWriteHorizText;
+    int xLeftPlacement;
+    int space = 15;
+    mPaint.setTextSize(25);
+    SDWord word = new SDWord(dependent, false, mPaint,
+                             correctedWord, row.level);
+    word.calculateDimensions();
+    
+    if (depFollowsGov) {
+      xLeftPlacement = governor.placement.right + space;
+    } else {
+      xLeftPlacement = governor.placement.left;
+      // Draw white rectangle in place of governor.
+      mPaint.setColor(Color.WHITE);
+      canvas.drawRect(governor.placement, mPaint);
+      mPaint.setColor(Color.BLACK);
+      // Redraw governor to follow dependent.
+      mPaint.setTextSize(row.horizTextSize);
+      governor.onPreDraw();
+      canvas.drawText(governor.word,
+    		          governor.placement.left + word.dimensions.width() + space,
+    		          row.yCoordToWriteHorizText,
+    		          mPaint);
+      governor.placement.set(
+          (int) governor.placement.left + word.dimensions.width() + space,
+          (int) row.yCoordToWriteHorizText - governor.dimensions.height(),
+          (int) governor.placement.left + word.dimensions.width() + space + governor.dimensions.width(),
+          (int) row.yCoordToWriteHorizText + 15);
+      governor.onPostDraw();
+    }
+    
+    // Draw dependent word.
+    word.onPreDraw();
+    mPaint.setTextSize(25);
+    canvas.drawText(word.word,
+                    xLeftPlacement,
+                    yPlacement,
+                    mPaint);
+    word.placement.set(
+        (int) xLeftPlacement,
+        (int) row.yCoordToWriteHorizText - word.dimensions.height(),
+        (int) xLeftPlacement + word.dimensions.width(),
+        (int) row.yCoordToWriteHorizText + 15);
+    word.onPostDraw();
+    // Save word as part of governor's dependents.
+    governor.dependents.add(word);
+    
+    // Diagram dependencies of the dependent.
+    for (SDDependency dep : dependencies) {
+      if (dep.gov.equals(word.word)) {
+        dependencyParse(dep.dep, word, dep.reln,
                         word.row + 1);
       }
     }

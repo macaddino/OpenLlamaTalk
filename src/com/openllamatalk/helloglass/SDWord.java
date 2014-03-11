@@ -16,12 +16,9 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 
-import edu.stanford.nlp.trees.TreeGraphNode;
-
 public class SDWord {
 
   public String word;
-  public TreeGraphNode node;    // Node in dependency tree.
   public Rect dimensions;    // Rectangular dimensions of word.
   public Rect placement;    // Axes of placement on diagram.
   public boolean isDiagonal;
@@ -31,9 +28,8 @@ public class SDWord {
   public int row;  // Sentence Diagram row which word is placed on.
   public List<SDWord> dependents;
 
-  public SDWord(String wrd, TreeGraphNode nd, boolean diagonal, Paint mPnt,
+  public SDWord(String wrd, boolean diagonal, Paint mPnt,
                 String correctedWord, int r) {
-    node = nd;
     dimensions = new Rect();
     placement = new Rect();
     word = wrd;

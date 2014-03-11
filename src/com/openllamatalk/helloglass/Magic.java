@@ -7,7 +7,11 @@ package com.openllamatalk.helloglass;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInput;
 import java.io.ObjectInputStream;
+import java.io.OutputStreamWriter;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -49,6 +53,7 @@ import com.google.android.glass.widget.CardScrollAdapter;
 import com.google.android.glass.widget.CardScrollView;
 
 import edu.stanford.nlp.parser.lexparser.LexicalizedParser;
+import edu.stanford.nlp.trees.TypedDependency;
 
 public class Magic extends Activity {
 	
@@ -74,6 +79,7 @@ public class Magic extends Activity {
   private Card card1;
 
   private int total_sentences = 0;
+  private int total_fillers = 0;
   private List<ErroneousSentence> err_sentences;
   /*
   private InputStream modelIn = null;
@@ -88,6 +94,9 @@ public class Magic extends Activity {
   */
   private JLanguageTool _langTool = null;
 
+  private List<FillerWord> fillerWords = Arrays.asList(
+      new FillerWord("um"), new FillerWord("uh"), new FillerWord("er"));
+
   
   private class LoadModels extends AsyncTask<Context, Integer, Context> {
 	// Load OpenNLP's sentence tokenizer and POS tagger models.
@@ -100,6 +109,7 @@ public class Magic extends Activity {
           setContentView(card1View);
         }
       });
+      
 
       try {
           // Loading LanguageTool grammatical correction tool.
@@ -114,6 +124,7 @@ public class Magic extends Activity {
       
 	    AssetManager assetManager = context[0].getAssets();
 
+	    /*
 	    try {
 	      // Loading Stanford Dependency parsing model.
 	      stanModelIn = assetManager.open("englishPCFG");
@@ -134,6 +145,7 @@ public class Magic extends Activity {
 	    } catch (final IOException e) {
         e.printStackTrace();
 	    }
+	    */
 
 	  
 	    /*
@@ -234,19 +246,10 @@ public class Magic extends Activity {
         dashboardLock = true;
         mainMenuCardsView.deactivate();
         
-        String total_sentences_plural = "s have";
-        String err_sentences_plural = "s have";
-        if (total_sentences == 1) {
-          total_sentences_plural = " has";
-        }
-        if (err_sentences.size() == 1) {
-          err_sentences_plural = " has";
-        }
-
-        dashboardCard.setText(total_sentences + " sentence" +
-                              total_sentences_plural + " been spoken.\n" +
-                              err_sentences.size() + " grammar error" +
-                              err_sentences_plural + " been made.");
+        dashboardCard.setText("Report Card\nTotal Sentences: " +
+                              total_sentences + "\nGrammar Errors: " +
+                              err_sentences.size() + "\nFiller Word Count: " +
+                              total_fillers); // + "\nGrade:");
 
         dashboardView.updateViews(true);
         dashboardView.activate();
@@ -326,11 +329,11 @@ public class Magic extends Activity {
             long id) {
       Assert.assertEquals(dashboardLock, true);
       // Look at grammatical errors.
-      if (position == 0 && !senCards.isEmpty()) {
+      if (position == 0 && err_sentences.size() > 0) {
         dashOptionsView.deactivate();
         senCardsView.activate();
         setContentView(senCardsView);
-      } else if (position == 1 && !fillerCards.isEmpty()) {
+      } else if (position == 1 && total_fillers > 0) {
       // Look at fillers.
         dashOptionsView.deactivate();
         fillerView.activate();
@@ -430,14 +433,48 @@ public class Magic extends Activity {
   // Load an erroneous sentence's information/diagrams into respective cards.
     protected ErroneousSentence doInBackground(ErroneousSentence... sen) {
       ErroneousSentence sentence = sen[0];
-      sentence.getSentenceDependencies();
+      
+      
+      // FOR TESTING PURPOSES: TRY TO CONNECT SOCKET TO PC
+      Socket sock;
+      List<SDDependency> dep = null;
+      try {
+        // sock = new Socket("MY_PCS_IP", 1149);
+        // FOR UNITVERSTIY OF CHICAGO NETWORKS
+        sock = new Socket("10.150.106.50", 1149);
+        // sock = new Socket("2602:306:37ef:240:7ae4:ff:fe3d:9ef2", 1149);
+        System.out.println("CONNECTING...");
+
+        OutputStreamWriter osw;
+        osw = new OutputStreamWriter(sock.getOutputStream(), "UTF-8");
+        osw.write(sentence.correctedSentence, 0, sentence.correctedSentence.length());
+        osw.flush();
+        sock.shutdownOutput();
+
+        InputStream socketStream = sock.getInputStream();
+        ObjectInputStream objectInput = new ObjectInputStream(socketStream);
+        dep = (List<SDDependency>) objectInput.readObject();
+        if (dep != null)
+          System.out.println("DEPS IS NOT NULL");
+        sock.close();
+ 
+      } catch (UnknownHostException e) {
+        e.printStackTrace();
+      } catch (IOException e) {
+        e.printStackTrace();
+      } catch (ClassNotFoundException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
+	
+      
+      sentence.getSentenceDependencies(dep);
       sentence.makeDiagram();
 
       return sentence;
     }
 
     protected void onPostExecute(ErroneousSentence sentence) {
-      err_sentences.add(sentence);
       
       Card newCard = new Card(sentence.context);
       newCard.setImageLayout(Card.ImageLayout.FULL);
@@ -449,7 +486,9 @@ public class Magic extends Activity {
         SystemClock.sleep(2000);
       }
       dashboardLock = true;
+      err_sentences.add(sentence);
       senCards.add(newCard);
+      senCardsView.updateViews(true);
       dashboardLock = false;
     }
   }
@@ -506,7 +545,7 @@ public class Magic extends Activity {
     sentenceAdapter senAdapter = new sentenceAdapter();
     senCardsView.setAdapter(senAdapter);
     senCardsView.setOnItemClickListener(senAdapter);
-	
+
     // Alert user if no recognition service is present.
     PackageManager pm = getPackageManager();
     List<ResolveInfo> activities = pm.queryIntentActivities(
@@ -545,6 +584,35 @@ public class Magic extends Activity {
       ArrayList<String> matches = data.getStringArrayListExtra(
           RecognizerIntent.EXTRA_RESULTS);
       String best_match = matches.get(0);
+
+
+      // Find filler words - abstract to other function?
+      boolean set_card = false;
+      String[] sen_words = best_match.split(" ");
+      for (String word : sen_words) {
+        for (FillerWord filler : fillerWords) {
+          if (word.equals(filler.word)) {
+            filler.addCount();
+            total_fillers++;
+            for (Card fillerCard : fillerCards) {
+              // Upon filler match, increment filler card count.
+              if (fillerCard.getText().equals(word)) {
+                fillerCard.setFootnote(String.valueOf(filler.count));
+                set_card = true;
+                break;
+              }
+            }
+            if (!set_card) {
+              // If filler card not already created, create it.
+              Card fillerCard = new Card(this);
+              fillerCard.setText(filler.word);
+              fillerCard.setFootnote(String.valueOf(filler.count));
+              fillerCards.add(fillerCard);
+              fillerView.updateViews(true);
+            }
+          }
+        }
+      }
 
       // FIND PARTS OF SPEECH OF SPOKEN TEXT - ABSTRACT TO OTHER FUNCTION?
       

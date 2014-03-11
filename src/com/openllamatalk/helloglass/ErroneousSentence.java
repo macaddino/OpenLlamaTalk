@@ -40,7 +40,8 @@ public class ErroneousSentence {
   public String correctedSentence;
   public String wordReplacement;  // In case we want word to be red in diagram.
   public String errorType;
-  public List<TypedDependency> wordDeps;
+  // public List<TypedDependency> wordDeps;
+  public List<SDDependency> wordDeps;
   public LexicalizedParser _lp;
   public SentenceDiagram diagram;
   public Uri diagramFile;  // Stored in cacheDir
@@ -70,7 +71,8 @@ public class ErroneousSentence {
 
 
   // Get word dependencies in corrected sentence (such as nsubj, pred, dobj).
-  public void getSentenceDependencies() {
+  
+  /*public void getSentenceDependencies() {
     TokenizerFactory<CoreLabel> tokenizerFactory =
         PTBTokenizer.factory(new CoreLabelTokenFactory(), "");
     Tokenizer<CoreLabel> tok =
@@ -85,6 +87,10 @@ public class ErroneousSentence {
     GrammaticalStructureFactory gsf = tlp.grammaticalStructureFactory();
     GrammaticalStructure gs = gsf.newGrammaticalStructure(parse);
     wordDeps = gs.typedDependencies(false);
+  }*/
+  
+  public void getSentenceDependencies(List<SDDependency> deps) {
+    wordDeps = deps;
   }
   
 
