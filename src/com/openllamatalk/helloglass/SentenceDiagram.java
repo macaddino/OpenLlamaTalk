@@ -26,7 +26,6 @@ public class SentenceDiagram {
   public int textDistFromHorizLine;  // Space between text and horiz line.
   public int textDistFromVertLine;  // Space between text and vertical line.
   public int diagSpacing; // Space between two diagonal lines.
-  //public List<TypedDependency> dependencies; // Dependencies between words.
   public List<SDDependency> dependencies;  // Dependencies between words.
   public List<SDRow> rows;  // Sentence diagram rows.
   public String correctedWord;
@@ -39,7 +38,6 @@ public class SentenceDiagram {
   public int textSize;
 
 
-  //SentenceDiagram(List<TypedDependency> deps, String word) {
   SentenceDiagram(List<SDDependency> deps, String word) {
     dependencies = deps;
     correctedWord = word;
@@ -77,13 +75,10 @@ public class SentenceDiagram {
     rows.add(diagramSkeleton);
 
     // Find verb, and dobj/pred adj/pred noun if present.
-    // for (TypedDependency dep : dependencies) {
     for (SDDependency dep : dependencies) {
-      //if (dep.reln().toString().equals("cop")) {
       System.out.println(dep.reln);
       System.out.println("SIZE OF DEPS: " + dependencies.size());
       if (dep.reln.equals("cop")) {
-        //predAdjOrNoun = dep.gov().toString();
     	predAdjOrNoun = dep.gov;
         predAdjOrNounOrDobjWord = new SDWord(predAdjOrNoun,
                                              false, mPaint, correctedWord,
@@ -416,7 +411,8 @@ public class SentenceDiagram {
       governor.placement.set(
           (int) governor.placement.left + word.dimensions.width() + space,
           (int) row.yCoordToWriteHorizText - governor.dimensions.height(),
-          (int) governor.placement.left + word.dimensions.width() + space + governor.dimensions.width(),
+          (int) governor.placement.left + word.dimensions.width() + space +
+              governor.dimensions.width(),
           (int) row.yCoordToWriteHorizText + 15);
       governor.onPostDraw();
     }

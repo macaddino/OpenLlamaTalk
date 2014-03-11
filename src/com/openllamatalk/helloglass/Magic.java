@@ -18,15 +18,6 @@ import java.util.List;
 import java.util.zip.GZIPInputStream;
 import junit.framework.Assert;
 
-/*
-import opennlp.tools.postag.POSModel;
-import opennlp.tools.postag.POSTagger;
-import opennlp.tools.postag.POSTaggerME;
-import opennlp.tools.tokenize.Tokenizer;
-import opennlp.tools.tokenize.TokenizerME;
-import opennlp.tools.tokenize.TokenizerModel;
-*/
-
 import org.languagetool.JLanguageTool;
 import org.languagetool.Language;
 import org.languagetool.language.AmericanEnglish;
@@ -51,9 +42,6 @@ import android.widget.AdapterView.OnItemClickListener;
 import com.google.android.glass.app.Card;
 import com.google.android.glass.widget.CardScrollAdapter;
 import com.google.android.glass.widget.CardScrollView;
-
-import edu.stanford.nlp.parser.lexparser.LexicalizedParser;
-import edu.stanford.nlp.trees.TypedDependency;
 
 public class Magic extends Activity {
 	
@@ -81,17 +69,8 @@ public class Magic extends Activity {
   private int total_sentences = 0;
   private int total_fillers = 0;
   private List<ErroneousSentence> err_sentences;
-  /*
-  private InputStream modelIn = null;
-  private InputStream tokenModelIn = null;
-  */
   private InputStream stanModelIn = null;
   private GZIPInputStream zipStanModelIn = null;
-  private LexicalizedParser _lp = null;
-  /*
-  private Tokenizer _tokenizer = null;
-  private POSTagger _posTagger = null;
-  */
   private JLanguageTool _langTool = null;
 
   private List<FillerWord> fillerWords = Arrays.asList(
@@ -123,67 +102,6 @@ public class Magic extends Activity {
       }
       
 	    AssetManager assetManager = context[0].getAssets();
-
-	    /*
-	    try {
-	      // Loading Stanford Dependency parsing model.
-	      stanModelIn = assetManager.open("englishPCFG");
-	    
-	      try {
-	        zipStanModelIn = new GZIPInputStream(stanModelIn);
-	      
-	        try {
-	          ObjectInputStream ios = new ObjectInputStream(zipStanModelIn);
-	          _lp = LexicalizedParser.loadModel(ios);
-
-	        } catch (IOException e) {
-	          e.printStackTrace();
-	        }
-	      } catch (IOException e) {
-	        e.printStackTrace();
-	      }
-	    } catch (final IOException e) {
-        e.printStackTrace();
-	    }
-	    */
-
-	  
-	    /*
-      try {
-        // Loading tokenizer model.
-        tokenModelIn = assetManager.open("en-token.bin");
-        final TokenizerModel tokenModel = new TokenizerModel(tokenModelIn);
-        tokenModelIn.close();
-          
-        _tokenizer = new TokenizerME(tokenModel);
-      } catch (final IOException ioe) {
-        ioe.printStackTrace();
-      } finally {
-        if (tokenModelIn != null) {
-          try {
-            tokenModelIn.close();
-          } catch (final IOException e) {} // oh well!
-        }
-      }
-      
-      try {
-        // Loading POS tagger model.
-        modelIn = assetManager.open("en-pos-maxent.bin");
-        final POSModel posModel = new POSModel(modelIn);
-        modelIn.close();
-        
-        _posTagger = new POSTaggerME(posModel);
-      } catch (final IOException ioe) {
-        ioe.printStackTrace();
-      } finally {
-        if (modelIn != null) {
-          try {
-            modelIn.close();
-          } catch (final IOException e) {} // oh well!
-        }
-      }
-      */
-
     
       return context[0];
     }
@@ -430,18 +348,15 @@ public class Magic extends Activity {
 
   private class AddErrorSentence extends AsyncTask<
       ErroneousSentence, Integer, ErroneousSentence> {
-  // Load an erroneous sentence's information/diagrams into respective cards.
+    // Load an erroneous sentence's information/diagrams into respective cards.
     protected ErroneousSentence doInBackground(ErroneousSentence... sen) {
       ErroneousSentence sentence = sen[0];
-      
-      
-      // FOR TESTING PURPOSES: TRY TO CONNECT SOCKET TO PC
       Socket sock;
       List<SDDependency> dep = null;
       try {
-        // sock = new Socket("MY_PCS_IP", 1149);
         // FOR UNITVERSTIY OF CHICAGO NETWORKS
         sock = new Socket("10.150.106.50", 1149);
+        // FOR HOME APARTMENT NETWORKS
         // sock = new Socket("2602:306:37ef:240:7ae4:ff:fe3d:9ef2", 1149);
         System.out.println("CONNECTING...");
 
@@ -463,11 +378,9 @@ public class Magic extends Activity {
       } catch (IOException e) {
         e.printStackTrace();
       } catch (ClassNotFoundException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	}
+		    e.printStackTrace();
+	    }
 	
-      
       sentence.getSentenceDependencies(dep);
       sentence.makeDiagram();
 
@@ -614,14 +527,6 @@ public class Magic extends Activity {
         }
       }
 
-      // FIND PARTS OF SPEECH OF SPOKEN TEXT - ABSTRACT TO OTHER FUNCTION?
-      
-      //String[] all_tokens = _tokenizer.tokenize(best_match);
-      //String[] all_pos = _posTagger.tag(all_tokens);
-      
-      // card1.setText(Arrays.toString(all_pos)); // Main text area
-      // View card1View = card1.toView();
-      
       // Detect grammatical errors and create dashboard entry for all sentences
       // with errors.
       List<RuleMatch> error_matches = new ArrayList<RuleMatch>();
