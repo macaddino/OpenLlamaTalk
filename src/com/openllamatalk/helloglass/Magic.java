@@ -33,15 +33,18 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.speech.RecognizerIntent;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.TextView;
 import android.widget.AdapterView.OnItemClickListener;
 
 import com.google.android.glass.app.Card;
 import com.google.android.glass.widget.CardScrollAdapter;
 import com.google.android.glass.widget.CardScrollView;
+
 
 public class Magic extends Activity {
 	
@@ -65,10 +68,16 @@ public class Magic extends Activity {
   private CardScrollView senCardsView = null;
   private boolean dashboardLock = false;
   private Card card1;
+  private Context _con;
 
   private int total_sentences = 0;
   private int total_fillers = 0;
   private List<ErroneousSentence> err_sentences;
+  private TextView tot_sen_view = null;
+  private TextView err_sen_view = null;
+  private TextView filler_view = null;
+  private TextView grade_view = null;
+  
   private InputStream stanModelIn = null;
   private GZIPInputStream zipStanModelIn = null;
   private JLanguageTool _langTool = null;
@@ -83,7 +92,9 @@ public class Magic extends Activity {
       runOnUiThread(new Runnable() {
         @Override
         public void run() {
-          card1.setText("LOADING MODELS");
+          card1.setImageLayout(Card.ImageLayout.FULL);
+          card1.addImage(R.drawable.load);
+          // card1.setText("LOADING MODELS");
           View card1View = card1.toView();
           setContentView(card1View);
         }
@@ -163,11 +174,20 @@ public class Magic extends Activity {
         }
         dashboardLock = true;
         mainMenuCardsView.deactivate();
+       
+        String grade =  getReportCardGrade(total_sentences,
+                                           err_sentences.size(),
+                                           total_fillers);
+        
+        //tot_sen_view.setText(total_sentences);
+        //err_sen_view.setText(err_sentences.size());
+		//filler_view.setText(total_fillers);
+		//grade_view.setText(grade);
         
         dashboardCard.setText("Report Card\nTotal Sentences: " +
                               total_sentences + "\nGrammar Errors: " +
                               err_sentences.size() + "\nFiller Word Count: " +
-                              total_fillers); // + "\nGrade:");
+                              total_fillers + "\nGrade: " + grade);
 
         dashboardView.updateViews(true);
         dashboardView.activate();
@@ -202,6 +222,8 @@ public class Magic extends Activity {
     
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
+      //LayoutInflater li = LayoutInflater.from(_con);
+      //return li.inflate(R.layout.l2, null, true);
       return dashboardCard.toView();
     }
     
@@ -355,9 +377,9 @@ public class Magic extends Activity {
       List<SDDependency> dep = null;
       try {
         // FOR UNITVERSTIY OF CHICAGO NETWORKS
-        sock = new Socket("10.150.106.50", 1149);
+        // sock = new Socket("10.150.32.49", 1149);
         // FOR HOME APARTMENT NETWORKS
-        // sock = new Socket("2602:306:37ef:240:7ae4:ff:fe3d:9ef2", 1149);
+        sock = new Socket("2602:306:37ef:240:61e8:a9b8:abb:bee5", 1149);
         System.out.println("CONNECTING...");
 
         OutputStreamWriter osw;
@@ -384,25 +406,31 @@ public class Magic extends Activity {
       sentence.getSentenceDependencies(dep);
       sentence.makeDiagram();
 
-      return sentence;
-    }
-
-    protected void onPostExecute(ErroneousSentence sentence) {
-      
       Card newCard = new Card(sentence.context);
       newCard.setImageLayout(Card.ImageLayout.FULL);
       newCard.addImage(sentence.diagramFile);
       newCard.setFootnote(sentence.errorType);
-      // Should there be a lock around senCards here?
+      
+   // Should there be a lock around senCards here?
       while (dashboardLock) {
         // Sleep 2 seconds if dashboard is being viewed.
         SystemClock.sleep(2000);
       }
       dashboardLock = true;
       err_sentences.add(sentence);
+      senCardsView.activate();
       senCards.add(newCard);
       senCardsView.updateViews(true);
+      senCardsView.deactivate();
       dashboardLock = false;
+      
+      return sentence;
+    }
+
+    protected void onPostExecute(ErroneousSentence sentence) {
+      
+      
+      
     }
   }
 
@@ -415,6 +443,14 @@ public class Magic extends Activity {
      * 
      * More info here: http://developer.android.com/guide/topics/ui/themes.html
      */
+    _con = this;
+    
+    //setContentView(R.layout.l2);
+    //tot_sen_view = (TextView) this.findViewById(R.id.sentenceCount);
+    //err_sen_view = (TextView) this.findViewById(R.id.grammarErrorCount);
+    //filler_view = (TextView) this.findViewById(R.id.fillerCount);
+	//grade_view = (TextView) this.findViewById(R.id.grade);
+    
     card1 = new Card(this);
     err_sentences = new ArrayList<ErroneousSentence>();
     
@@ -424,6 +460,7 @@ public class Magic extends Activity {
       newCard.setText(mainMenuText.get(i));
       mainMenuCards.add(newCard);
     }
+    
 
     mainMenuCardsView = new CardScrollView(this);
     mainMenuAdapter mMenuAdapter = new mainMenuAdapter();
@@ -540,7 +577,7 @@ public class Magic extends Activity {
         ErroneousSentence sentence = new ErroneousSentence(
             best_match,
             error_matches.get(0),
-            _lp,
+            null,
             this);
         
         // Create sentence visualization in background.
@@ -552,6 +589,44 @@ public class Magic extends Activity {
     }
 	
     super.onActivityResult(requestCode, resultCode, data);
+  }
+
+  
+  /**
+   * Output report card grade.
+   */
+  private String getReportCardGrade(int total_sen, int grammar_errors,
+                                    int fillers) {
+    double errorDeduction;
+    double gradePercentage;
+    double prevalenceRate = 0.3;
+
+    // Gain a rough estimate of the word count
+    // This also has the positive side effect of rewarding sentence complexity.
+    int totalWords = (int) ((double) total_sen / prevalenceRate);
+
+    // Count grammar errors as 2 errors because they arise as problems
+    // between at least two words.
+    errorDeduction = 2.0 * (double) grammar_errors;
+    // Vocal fillers are a single error each.
+    errorDeduction += (double) fillers;
+    // But fillers also reduce relative sentence length.
+    totalWords -= fillers;
+
+    // Compute grade as a percentage.
+    gradePercentage = ((double) totalWords - errorDeduction) / totalWords;
+    // Convert to a letter grade using social conventions.
+    if (gradePercentage > .9) {
+      return "A";
+    } else if (gradePercentage > .8) {
+      return "B";
+    } else if (gradePercentage > .7) {
+      return "C";
+    } else if (gradePercentage > .6) {
+      return "D";
+    } else {
+      return "F";
+    }
   }
 
 }

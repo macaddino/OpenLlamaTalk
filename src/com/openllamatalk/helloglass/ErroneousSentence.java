@@ -14,6 +14,7 @@ import java.io.StringReader;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Random;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -97,7 +98,9 @@ public class ErroneousSentence {
     String timeStamp = new SimpleDateFormat("ddMMyyyy_HHmm").format(
         new Date());
     File mediaFile;
-    String mImageName = "MI_" + timeStamp + ".jpg";
+    Random rand = new Random();
+    int n = rand.nextInt(70) + 1;
+    String mImageName = n + "_MI_" + timeStamp + ".jpg";
     mediaFile = new File(mediaStorageDir.getPath() + File.separator
         + mImageName);
     if (mediaFile == null) {
